@@ -13,7 +13,7 @@ appointmentController.post("/create", async (req, res) => {
     sendResponse(res, 200, "Success", {
       message: "Appointment created successfully!",
       data: newAppointment,
-      statusCode: 200, 
+      statusCode: 200,  
     });
   } catch (error) {
     console.error(error);

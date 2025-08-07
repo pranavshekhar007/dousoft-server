@@ -41,6 +41,23 @@ const blogSchema = mongoose.Schema({
   rank: {
     type: Number,
   },
+  blogCategoryId: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BlogCategory",
+    },
+  ],
+  comments: [
+    {
+      name: { type: String, required: true },
+      message: { type: String, required: true },
+      createdAt: { type: Date, default: Date.now },
+    },
+  ],
+  viewCount: {
+    type: Number,
+    default: 0,
+  },
 });
 
 blogSchema.plugin(timestamps);

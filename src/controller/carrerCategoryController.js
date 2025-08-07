@@ -1,69 +1,66 @@
 const express = require("express");
 const { sendResponse } = require("../utils/common");
 require("dotenv").config();
-const blogController = express.Router();
+const Category = require("../model/carrerCategory.Schema");
+require("dotenv").config();
 const cloudinary = require("../utils/cloudinary");
 const upload = require("../utils/multer");
-const Blog = require("../model/blog.Schema")
+const SubCategory = require("../model/subCategory.Schema");
+const Product = require("../model/product.Schema")
+const { sendNotification } = require("../utils/sendNotification");
 
+const carrerCategoryController = express.Router();
 
-blogController.post("/create", upload.single("image"), async (req, res) => {
+carrerCategoryController.post("/create", upload.single("image"), async (req, res) => {
   try {
-    let obj;
+    let obj = { ...req.body };
+
     if (req.file) {
-      let image = await cloudinary.uploader.upload(req.file.path, function (err, result) {
-        if (err) {
-          return err;
-        } else {
-          return result;
-        }
-      });
-      obj = { ...req.body, image: image.url };
+      const image = await cloudinary.uploader.upload(req.file.path);
+      obj.image = image.url;
     }
-    const blogCreated = await Blog.create(obj);
-    
+
+    const CategoryCreated = await Category.create(obj);
+
     sendResponse(res, 200, "Success", {
-      message: "Blog created successfully!",
-      data: blogCreated,
-      statusCode: 200
+      message: "Carrer Category created successfully!",
+      data: CategoryCreated,
+      statusCode: 200,
     });
   } catch (error) {
     console.error(error);
     sendResponse(res, 500, "Failed", {
       message: error.message || "Internal server error",
-      statusCode: 500
+      statusCode: 500,
     });
   }
 });
 
-blogController.post("/list", async (req, res) => {
+carrerCategoryController.post("/list", async (req, res) => {
   try {
     const {
       searchKey = "",
       status,
-      blogCategoryId,
       pageNo = 1,
-      pageCount = 10,
+      pageCount = 30,
       sortByField,
       sortByOrder
     } = req.body;
     const query = {};
     if (status) query.status = status;
-    if (searchKey) query.title = { $regex: searchKey, $options: "i" };
-    if (blogCategoryId) query.blogCategoryId = blogCategoryId;
+    if (searchKey) query.name = { $regex: searchKey, $options: "i" };
     const sortField = sortByField || "createdAt";
     const sortOrder = sortByOrder === "asc" ? 1 : -1;
     const sortOption = { [sortField]: sortOrder };
-    const blogList = await Blog.find(query)
-      .populate("blogCategoryId")
+    const categoryList = await Category.find(query)
       .sort(sortOption)
       .limit(parseInt(pageCount))
       .skip(parseInt(pageNo - 1) * parseInt(pageCount));
-    const totalCount = await Blog.countDocuments({});
-    const activeCount = await Blog.countDocuments({ status: true });
+    const totalCount = await Category.countDocuments({});
+    const activeCount = await Category.countDocuments({ status: true });
     sendResponse(res, 200, "Success", {
-      message: "Blog list retrieved successfully!",
-      data: blogList,
+      message: "Carrer Category list retrieved successfully!",
+      data: categoryList,
       documentCount: { totalCount, activeCount, inactiveCount: totalCount - activeCount },
       statusCode: 200
     });
@@ -76,21 +73,21 @@ blogController.post("/list", async (req, res) => {
   }
 });
 
-blogController.put("/update", upload.single("image"), async (req, res) => {
+carrerCategoryController.put("/update", upload.single("image"), async (req, res) => {
   try {
-    const id = req.body.id;
-    const blog = await Blog.findById(id);
-    if (!blog) {
+    const id = req.body._id;
+    const category = await Category.findById(id);
+    if (!category) {
       return sendResponse(res, 404, "Failed", {
-        message: "Blog not found",
-        statusCode: 404
+        message: "Carrer Category not found",
+        statusCode: 403
       });
     }
     let updatedData = { ...req.body };
     if (req.file) {
       // Delete the old image from Cloudinary
-      if (blog.image) {
-        const publicId = blog.image.split("/").pop().split(".")[0];
+      if (category.image) {
+        const publicId = category.image.split("/").pop().split(".")[0];
         await cloudinary.uploader.destroy(publicId, (error, result) => {
           if (error) {
             console.error("Error deleting old image from Cloudinary:", error);
@@ -102,12 +99,12 @@ blogController.put("/update", upload.single("image"), async (req, res) => {
       const image = await cloudinary.uploader.upload(req.file.path);
       updatedData.image = image.url;
     }
-    const updatedBlog = await Blog.findByIdAndUpdate(id, updatedData, {
+    const updatedCategory = await Category.findByIdAndUpdate(id, updatedData, {
       new: true, // Return the updated document
     });
     sendResponse(res, 200, "Success", {
-      message: "Blog updated successfully!",
-      data: updatedBlog,
+      message: "Carrer Category updated successfully!",
+      data: updatedCategory,
       statusCode: 200
     });
   } catch (error) {
@@ -118,17 +115,16 @@ blogController.put("/update", upload.single("image"), async (req, res) => {
   }
 });
 
-blogController.delete("/delete/:id", async (req, res) => {
+carrerCategoryController.delete("/delete/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const blog = await Blog.findById(id);
-    if (!blog) {
+    const category = await Category.findById(id);
+    if (!category) {
       return sendResponse(res, 404, "Failed", {
-        message: "Blog not found",
-        statusCode:"404"
+        message: "Carrer Category not found",
       });
     }
-    const imageUrl = blog.image;
+    const imageUrl = category.image;
     if (imageUrl) {
       const publicId = imageUrl.split("/").pop().split(".")[0]; // Extract public ID
       // Delete the image from Cloudinary
@@ -140,32 +136,27 @@ blogController.delete("/delete/:id", async (req, res) => {
         }
       });
     }
-    await Blog.findByIdAndDelete(id);
+    await Category.findByIdAndDelete(id);
     sendResponse(res, 200, "Success", {
-      message: "Blog and associated image deleted successfully!",
-      statusCode:"200"
+      message: "Carrer Category and associated image deleted successfully!",
     });
   } catch (error) {
     console.error(error);
     sendResponse(res, 500, "Failed", {
       message: error.message || "Internal server error",
-      statusCode:"500"
     });
   }
 });
 
 
-blogController.get("/details/:id", async (req, res) => {
+carrerCategoryController.get("/details/:id", async (req, res) => {
   try {
     const { id } = req.params
-    const blogDetails = await Blog.findByIdAndUpdate(
-      id,
-      { $inc: { viewCount: 1 } },
-      { new: true }
-    ).populate("blogCategoryId");
+    const CategoryDetails = await Category.findOne({ _id: id });
+    const SubCategoryList = await SubCategory.find({ categoryId: id });
     sendResponse(res, 200, "Success", {
-      message: "Blog details retrived successfully!",
-      data: blogDetails,
+      message: "Carrer Category with sub category retrived successfully!",
+      data: { CategoryDetails, SubCategoryList },
       statusCode: 200
     });
   } catch (error) {
@@ -177,45 +168,5 @@ blogController.get("/details/:id", async (req, res) => {
   }
 });
 
-blogController.post("/comment/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, message } = req.body;
 
-    if (!name || !message) {
-      return sendResponse(res, 400, "Failed", {
-        message: "Name and message are required",
-        statusCode: 400,
-      });
-    }
-
-    const blog = await Blog.findByIdAndUpdate(
-      id,
-      { $push: { comments: { name, message } } },
-      { new: true }
-    );
-
-    if (!blog) {
-      return sendResponse(res, 404, "Failed", {
-        message: "Blog not found",
-        statusCode: 404,
-      });
-    }
-
-    sendResponse(res, 200, "Success", {
-      message: "Comment added successfully!",
-      data: blog.comments,
-      statusCode: 200,
-    });
-  } catch (error) {
-    console.error(error);
-    sendResponse(res, 500, "Failed", {
-      message: error.message || "Internal server error",
-      statusCode: 500,
-    });
-  }
-});
-
-
-
-module.exports = blogController;
+module.exports = carrerCategoryController;
