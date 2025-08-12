@@ -45,6 +45,10 @@ const appointmentController = require("./controller/appointmentController");
 const blogController = require("./controller/blogController");
 const blogCategoryController = require("./controller/blogCategoryController");
 const portfolioCategoryController = require("./controller/portfolioCategoryCpntroller");
+const subscribeController = require("./controller/subscribeController");
+const portfolioController = require("./controller/portfolioController");
+const carrerCategoryController = require("./controller/carrerCategoryController");
+const careerController = require("./controller/carrerController");
 
 router.use("/user", userController);
 router.use("/driver", driverController);
@@ -88,8 +92,12 @@ router.use("/scheme", schemeConfigController);
 router.use("/review", googleReviewController);
 router.use("/doctor-review", doctorReviewController);
 router.use("/appointment", appointmentController);
-router.use("/blog", blogController);
 router.use("/blog-category", blogCategoryController);
+router.use("/blog", blogController);
 router.use("/portfolio-category", portfolioCategoryController);
+router.use("/portfolio", portfolioController);
+router.use("/carrer-category", carrerCategoryController);
+router.use("/carrer", careerController);
+router.use("/subscribe", subscribeController);
 
 module.exports = router;

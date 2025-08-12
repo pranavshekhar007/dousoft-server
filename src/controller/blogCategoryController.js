@@ -118,28 +118,42 @@ blogCategoryController.put("/update", upload.single("image"), async (req, res) =
 blogCategoryController.delete("/delete/:id", async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Check if category exists
     const category = await Category.findById(id);
     if (!category) {
       return sendResponse(res, 404, "Failed", {
         message: "Blog Category not found",
       });
     }
-    const imageUrl = category.image;
-    if (imageUrl) {
-      const publicId = imageUrl.split("/").pop().split(".")[0]; // Extract public ID
-      // Delete the image from Cloudinary
-      await cloudinary.uploader.destroy(publicId, (error, result) => {
-        if (error) {
-          console.error("Error deleting image from Cloudinary:", error);
-        } else {
-          console.log("Cloudinary image deletion result:", result);
-        }
-      });
+
+    // Delete image from Cloudinary if exists
+    if (category.image) {
+      try {
+        // More reliable publicId extraction (handles folders)
+        const parts = category.image.split("/");
+        const fileName = parts.pop();
+        const folderPath = parts.slice(parts.indexOf("upload") + 1).join("/");
+        const publicId = folderPath
+          ? `${folderPath}/${fileName.split(".")[0]}`
+          : fileName.split(".")[0];
+
+        const result = await cloudinary.uploader.destroy(publicId);
+        console.log("Cloudinary delete result:", result);
+      } catch (cloudErr) {
+        console.error("Cloudinary image deletion error:", cloudErr.message);
+        // Not throwing — still delete category in DB
+      }
     }
+
+    // Delete category from DB
     await Category.findByIdAndDelete(id);
+
     sendResponse(res, 200, "Success", {
       message: "Blog Category and associated image deleted successfully!",
+      statusCode: 200, // Number, not string
     });
+
   } catch (error) {
     console.error(error);
     sendResponse(res, 500, "Failed", {
@@ -147,6 +161,7 @@ blogCategoryController.delete("/delete/:id", async (req, res) => {
     });
   }
 });
+
 
 
 blogCategoryController.get("/details/:id", async (req, res) => {

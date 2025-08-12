@@ -1,6 +1,7 @@
 const express = require("express");
 const Appointment = require("../model/appointment.Schema");
 const { sendResponse } = require("../utils/common");
+const sendEmail = require("../utils/sendEmail");
 const appointmentController = express.Router();
 require("dotenv").config();
 
@@ -11,9 +12,10 @@ appointmentController.post("/create", async (req, res) => {
     const newAppointment = await Appointment.create(appointmentData);
 
     sendResponse(res, 200, "Success", {
-      message: "Appointment created successfully!",
+      message:
+        "Appointment created successfully! Please wait for confirmation via email.",
       data: newAppointment,
-      statusCode: 200,  
+      statusCode: 200,
     });
   } catch (error) {
     console.error(error);
@@ -27,12 +29,7 @@ appointmentController.post("/create", async (req, res) => {
 // List Appointments with pagination, search, status filter
 appointmentController.post("/list", async (req, res) => {
   try {
-    const {
-      searchKey = "",
-      status,
-      pageNo = 1,
-      pageCount = 10,
-    } = req.body;
+    const { searchKey = "", status, pageNo = 1, pageCount = 10 } = req.body;
 
     const query = {};
     if (status) query.status = status;
@@ -46,14 +43,17 @@ appointmentController.post("/list", async (req, res) => {
     }
 
     const appointmentList = await Appointment.find(query)
-    .populate("userId", "name")
       .sort({ createdAt: -1 })
       .skip((pageNo - 1) * pageCount)
       .limit(pageCount);
 
     const totalCount = await Appointment.countDocuments({});
-    const confirmedCount = await Appointment.countDocuments({ status: "confirmed" });
-    const rejectedCount = await Appointment.countDocuments({ status: "rejected" });
+    const confirmedCount = await Appointment.countDocuments({
+      status: "confirmed",
+    });
+    const rejectedCount = await Appointment.countDocuments({
+      status: "rejected",
+    });
     const pendingCount = totalCount - confirmedCount - rejectedCount;
 
     sendResponse(res, 200, "Success", {
@@ -78,7 +78,14 @@ appointmentController.post("/list", async (req, res) => {
 // Update Appointment
 appointmentController.put("/update", async (req, res) => {
   try {
-    const { id, ...updateFields } = req.body;
+    const { id, status, ...updateFields } = req.body;
+
+    if (!id) {
+      return sendResponse(res, 400, "Failed", {
+        message: "Appointment ID is required",
+        statusCode: 400,
+      });
+    }
 
     const existing = await Appointment.findById(id);
     if (!existing) {
@@ -88,20 +95,63 @@ appointmentController.put("/update", async (req, res) => {
       });
     }
 
-    const updated = await Appointment.findByIdAndUpdate(id, updateFields, { new: true });
+    const wasStatus = existing.status;
+    const willStatus = status ?? updateFields.status;
 
-    sendResponse(res, 200, "Success", {
+    const updated = await Appointment.findByIdAndUpdate(
+      id,
+      { ...updateFields, ...(status && { status }) },
+      { new: true }
+    );
+
+    // console.log({
+    //   wasStatus,
+    //   willStatus,
+    //   updatedStatus: updated?.status,
+    //   email: updated?.email,
+    // });
+
+    if (willStatus === "confirmed" && wasStatus !== "confirmed") {
+      if (!updated?.email) {
+        console.warn("No email on appointment, skipping email send");
+      } else {
+        try {
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif;">
+              <h2>Your appointment is confirmed</h2>
+              <p>Dear ${updated.name || "Customer"},</p>
+              <p>Your appointment has been confirmed.</p>
+              <ul>
+                <li>Date: ${updated.date || "-"}</li>
+                <li>Time: ${updated.time || "-"}</li>
+                <li>Subject: ${updated.subject || "-"}</li>
+              </ul>
+              <p>We look forward to seeing you.</p>
+            </div>
+          `;
+          console.log("Attempting to send email to", updated.email);
+          await sendEmail(updated.email, "Appointment Confirmed", emailHtml);
+          console.log("Email sent successfully");
+        } catch (mailErr) {
+          console.error("Email send failed:", mailErr?.message, mailErr);
+        }
+      }
+    }
+
+    return sendResponse(res, 200, "Success", {
       message: "Appointment updated successfully!",
       data: updated,
       statusCode: 200,
     });
   } catch (error) {
-    sendResponse(res, 500, "Failed", {
+    console.error(error);
+    return sendResponse(res, 500, "Failed", {
       message: error.message || "Internal server error",
       statusCode: 500,
     });
   }
 });
+
 
 // Delete Appointment
 appointmentController.delete("/delete/:id", async (req, res) => {
@@ -133,8 +183,7 @@ appointmentController.delete("/delete/:id", async (req, res) => {
 appointmentController.get("/details/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const data = await Appointment.findById(id)
-    .populate("userId", "name");
+    const data = await Appointment.findById(id);
     if (!data) {
       return sendResponse(res, 404, "Failed", {
         message: "Appointment not found",
@@ -154,31 +203,31 @@ appointmentController.get("/details/:id", async (req, res) => {
   }
 });
 
-appointmentController.get("/user/:userId", async (req, res) => {
-    try {
-      const { userId } = req.params;
-  
-      const appointments = await Appointment.find({ userId })
-        .populate("userId", "name email");
-  
-      if (!appointments.length) {
-        return sendResponse(res, 404, "Failed", {
-          message: "No appointments found for this user",
-        });
-      }
-  
-      sendResponse(res, 200, "Success", {
-        message: "User's appointments fetched successfully!",
-        data: appointments,
-        statusCode: 200,
-      });
-    } catch (error) {
-      console.error(error);
-      sendResponse(res, 500, "Failed", {
-        message: error.message || "Internal server error",
-        statusCode: 500,
-      });
-    }
-  });  
+// appointmentController.get("/user/:userId", async (req, res) => {
+//     try {
+//       const { userId } = req.params;
+
+//       const appointments = await Appointment.find({ userId })
+//         .populate("userId", "name email");
+
+//       if (!appointments.length) {
+//         return sendResponse(res, 404, "Failed", {
+//           message: "No appointments found for this user",
+//         });
+//       }
+
+//       sendResponse(res, 200, "Success", {
+//         message: "User's appointments fetched successfully!",
+//         data: appointments,
+//         statusCode: 200,
+//       });
+//     } catch (error) {
+//       console.error(error);
+//       sendResponse(res, 500, "Failed", {
+//         message: error.message || "Internal server error",
+//         statusCode: 500,
+//       });
+//     }
+//   });
 
 module.exports = appointmentController;
