@@ -20,7 +20,7 @@ subscribeController.post("/subscribe", async (req, res) => {
       exists = await SubscribedUser.findOne({ email, subscribedFor: "All" });
       if (exists)
         return sendResponse(res, 409, "Failed", {
-          message: "Already subscribed for all.",
+          message: "Already subscribed.",
         });
     } else if (subscribedFor === "Category" && blogCategoryId) {
       exists = await SubscribedUser.findOne({
