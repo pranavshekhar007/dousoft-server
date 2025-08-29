@@ -17,4 +17,4 @@ const carrerCategorySchema = mongoose.Schema({
 });
 
 carrerCategorySchema.plugin(timestamps);
-module.exports = mongoose.model("CarrerCategory", carrerCategorySchema);
+module.exports = mongoose.model("CareerCategory", carrerCategorySchema);
